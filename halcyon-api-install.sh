@@ -168,7 +168,7 @@ DOWNLOAD_URL=$(echo "$INSTALLER_FIELDS"  | sed -n '1p')
 INSTALL_TOKEN=$(echo "$INSTALLER_FIELDS" | sed -n '2p')
 AGENT_VERSION=$(echo "$INSTALLER_FIELDS" | sed -n '3p')
 
-ok "Linux installer found: v${AGENT_VERSION}"
+ok "Linux installer found: ${AGENT_VERSION}"
 info "  Download URL   : $DOWNLOAD_URL"
 info "  Install token  : ${INSTALL_TOKEN:0:8}****************  (truncated for display)"
 
