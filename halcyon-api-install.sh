@@ -131,7 +131,7 @@ except Exception as e:
     print('PARSE_ERROR', flush=True)
     sys.exit(1)
 
-items = data.get('data', [])
+items = data.get('items', data.get('data', []))
 if not items:
     print('NO_DATA', flush=True)
     sys.exit(1)
