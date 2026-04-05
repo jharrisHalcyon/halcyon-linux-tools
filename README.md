@@ -71,4 +71,4 @@ This is not an official Halcyon product. It is a community utility maintained by
 
 ---
 
-*Halcyon SA*
+*jharris*
