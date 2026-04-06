@@ -238,7 +238,7 @@ header "ACT 3 of 6  //  eBPF Kernel Driver Architecture"
 
 narrate "The agent runs as two components. The userspace agent handles policy, cloud communication, detection logic, and event reporting. The eBPF driver hooks directly into the Linux kernel with no loadable kernel module, no kernel version pinning, and no reboot."
 
-narrate "Here is the live process state right now. Pay attention to the start times."
+narrate "Here is the live process state. Pay attention to the start times."
 
 echo ""
 printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
@@ -246,16 +246,24 @@ echo ""
 show_processes
 echo ""
 
-narrate "Both processes have been running since install. Now look at what systemd thinks about those same processes."
+narrate "Both processes running since install. Now look at what systemd thinks about those same processes."
 
 run_cmd 'systemctl status halcyonagent --no-pager | grep -E "Active:|Main PID|Duration|Process" | head -6'
 
+# Detect current systemd state and narrate accordingly
+SYSTEMD_STATE=$(systemctl is-active halcyonagent 2>/dev/null)
 echo ""
-printf "${BOLD}${ORANGE}  Systemd reports the service as inactive or failed.${RESET}\n"
-printf "${BOLD}${ORANGE}  The processes are very much alive.${RESET}\n"
-echo ""
-
-narrate "On startup the agent and eBPF driver detach their core processes from systemd's control group into independent PIDs. From that point forward, systemd has no handle on them. Exit code 17 is EEXIST -- the agent deliberately exits the systemd-managed instance when it detects its detached self is already running. Systemd sees a failure. The agent sees a success. This separation is what makes the next act possible."
+if [ "$SYSTEMD_STATE" = "active" ]; then
+    printf "${BOLD}${ORANGE}  Systemd reports the service as active.${RESET}\n"
+    printf "${BOLD}${WHITE}  But the service unit is not controlling the protection processes.${RESET}\n"
+    echo ""
+    narrate "On startup the agent and eBPF driver detach their core processes from systemd's control group into independent PIDs. The service unit may show active, but the processes that are actually protecting this system are running outside systemd's reach. Stopping the service unit does not stop protection. This is what makes the next act possible."
+else
+    printf "${BOLD}${ORANGE}  Systemd reports the service as ${SYSTEMD_STATE}.${RESET}\n"
+    printf "${BOLD}${ORANGE}  The processes are very much alive.${RESET}\n"
+    echo ""
+    narrate "On startup the agent and eBPF driver detach their core processes from systemd's control group into independent PIDs. Exit code 17 is EEXIST -- the agent deliberately exits the systemd-managed instance when it detects its detached self is already running. Systemd sees a failure. The agent sees a success. From that point forward, systemd has no handle on these processes. This is what makes the next act possible."
+fi
 
 pause
 
@@ -272,8 +280,6 @@ echo ""
 printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}sudo systemctl stop halcyonagent halcyonebpf${RESET}\n"
 echo ""
 sudo systemctl stop halcyonagent halcyonebpf 2>&1
-echo ""
-
 echo ""
 printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
 echo ""
@@ -293,8 +299,6 @@ if [ -n "$KILL_OUTPUT" ]; then
 else
     printf "${RED}  kill: (${AGENT_PID}): Operation not permitted${RESET}\n"
 fi
-echo ""
-
 echo ""
 printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
 echo ""
@@ -320,7 +324,7 @@ narrate "Attempt 4: Remove the package entirely using the system package manager
 echo ""
 printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}sudo apt remove halcyonagent -y${RESET}\n"
 echo ""
-sudo apt remove halcyonagent -y 2>&1 | grep -E "Operation not permitted|cannot remove|error processing|Killing|Failed to disable|too many errors"
+sudo apt remove halcyonagent -y 2>&1
 echo ""
 
 echo ""
@@ -394,9 +398,32 @@ narrate "Registration record from the agent log:"
 
 run_cmd 'sudo grep "c2::service Regist" /opt/halcyon/halcyonar/logs/agent.log | tail -3'
 
-narrate "DXP events captured during this session:"
+narrate "DXP event captured by the eBPF driver during Act 5. The kernel intercepted the connection before a single byte left this machine unchecked."
 
-run_cmd 'sudo grep "Nefarious Data Transfer" /opt/halcyon/halcyonar/logs/agent.log | tail -5'
+echo ""
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}sudo grep \"Bad ip\" /opt/halcyon/halcyonar/logs/halcyon-ebpf.log | grep -i mega | tail -1${RESET}\n"
+echo ""
+sudo grep "Bad ip" /opt/halcyon/halcyonar/logs/halcyon-ebpf.log | grep -i "mega" | tail -1 | python3 -c "
+import sys, re
+for line in sys.stdin:
+    ts = line.split()[0]
+    binary = re.search(r'bin_name: Some\(\"([^\"]+)\"\)', line)
+    args = re.search(r'bin_args: \[([^\]]+)\]', line)
+    ip = re.search(r'remote_ip: \[([^\]]+)\]', line)
+    dns = re.search(r'on_dns_list: (\w+)', line)
+    uid = re.search(r'uid: (\d+)', line)
+    raw_ip = ip.group(1) if ip else ''
+    fmt_ip = '.'.join(raw_ip.split(', ')) if raw_ip else 'unknown'
+    raw_args = args.group(1) if args else ''
+    dest = re.search(r'https://[^\s\"]+', raw_args)
+    print(f'  Timestamp  :  {ts}')
+    print(f'  Binary     :  {binary.group(1) if binary else \"unknown\"}')
+    print(f'  Destination:  {dest.group(0) if dest else \"unknown\"}')
+    print(f'  Remote IP  :  {fmt_ip}')
+    print(f'  DNS Match  :  {dns.group(1) if dns else \"unknown\"}')
+    print(f'  UID        :  {uid.group(1) if uid else \"unknown\"}')
+"
+echo ""
 
 narrate "Live agent resource consumption:"
 
