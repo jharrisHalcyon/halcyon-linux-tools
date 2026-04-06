@@ -2,7 +2,7 @@
 # halcyonLinuxDemo.sh
 # Interactive demo script for the Halcyon Linux Anti-Ransomware Agent
 # Author  : Jim Harris -- Halcyon SA
-# Version : v1.2
+# Version : v1.3
 #
 # Usage: bash halcyonLinuxDemo.sh
 #
@@ -44,6 +44,9 @@ OS_NAME=$(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr 
 # Fake PID for install theater -- realistic range
 FAKE_PID=$((RANDOM % 20000 + 10000))
 FAKE_THREAD1=$((RANDOM % 900000000000 + 100000000000))
+
+# Script name for filtering from ps output
+SCRIPT_NAME=$(basename "$0")
 
 # ------------------------------------------------------------------ #
 # Helpers
@@ -96,6 +99,10 @@ narrate() {
 fake_log() {
     printf "${GRAY}  $1${RESET}\n"
     sleep "${2:-0.1}"
+}
+
+show_processes() {
+    ps aux | grep -E "halcyon|ebpf" | grep -v grep | grep -v "$SCRIPT_NAME"
 }
 
 # ------------------------------------------------------------------ #
@@ -157,7 +164,6 @@ fake_log "Unpacking halcyonagent (${PRODUCT_VER}) ..." 0.5
 fake_log "Setting up halcyonagent (${PRODUCT_VER}) ..." 0.4
 fake_log "Created symlink /etc/systemd/system/multi-user.target.wants/halcyonebpf.service" 0.2
 fake_log "Created symlink /etc/systemd/system/multi-user.target.wants/halcyonagent.service" 0.3
-
 echo ""
 fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) INFO agent::core::log ---" 0.1
 fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) INFO agent::core::log Agent Started - ${NOWLOCAL} UTC" 0.1
@@ -188,7 +194,6 @@ fake_log "${NOW} [${FAKE_PID}](${FAKE_THREAD1}) INFO  agent::core::agent_service
 echo ""
 printf "${BOLD}${GREEN}  Registration successful${RESET}\n"
 printf "${BOLD}${GREEN}  Installation Success${RESET}\n"
-
 echo ""
 narrate "The agent resolved the Halcyon global API using the install token, received its regional C2 and Atlas endpoints, initialized 15 internal service modules, connected to the eBPF kernel driver, and completed tenant registration in under 5 seconds. The install token is consumed and deleted. The agent is live."
 
@@ -210,13 +215,17 @@ printf "  Product  :  ${BOLD}${WHITE}${PRODUCT_VER}${RESET}\n"
 printf "  Agent    :  ${BOLD}${WHITE}${AGENT_VER}${RESET}\n"
 printf "  eBPF     :  ${BOLD}${WHITE}${EBPF_VER}${RESET}\n"
 
-narrate "Service unit configuration. Note the systemd hardening applied at install time: PrivateTmp, ProtectKernelModules, MemoryDenyWriteExecute. The agent is locked down at the systemd level before it even starts."
+narrate "Service unit hardening applied at install time. The agent is locked down at the systemd level before it even starts."
 
 run_cmd 'systemctl cat halcyonagent | grep -E "ExecStart|PrivateTmp|ProtectKernel|MemoryDeny|LockPersonality|DevicePolicy"'
 
-narrate "Memory and CPU footprint. Engineered for production infrastructure where performance headroom is not negotiable."
+narrate "Memory and CPU footprint. Engineered for production infrastructure where performance headroom is not negotiable -- database servers, virtualized workloads, always-on systems."
 
-run_cmd 'ps aux | grep -E "halcyon|ebpf" | grep -v grep'
+echo ""
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
+echo ""
+show_processes
+echo ""
 
 narrate "No reboot required. Installation to protection in under 30 seconds."
 
@@ -229,20 +238,24 @@ header "ACT 3 of 6  //  eBPF Kernel Driver Architecture"
 
 narrate "The agent runs as two components. The userspace agent handles policy, cloud communication, detection logic, and event reporting. The eBPF driver hooks directly into the Linux kernel with no loadable kernel module, no kernel version pinning, and no reboot."
 
-narrate "Here is the live process state right now:"
-
-run_cmd 'ps aux | grep -E "halcyon|ebpf" | grep -v grep'
-
-narrate "Note the start times on those PIDs. Now look at what systemd thinks about those same processes."
-
-run_cmd 'systemctl status halcyonagent --no-pager | grep -E "Active:|Main PID" -A2'
+narrate "Here is the live process state right now. Pay attention to the start times."
 
 echo ""
-printf "${BOLD}${ORANGE}  Systemd reports the service as inactive.${RESET}\n"
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
+echo ""
+show_processes
+echo ""
+
+narrate "Both processes have been running since install. Now look at what systemd thinks about those same processes."
+
+run_cmd 'systemctl status halcyonagent --no-pager | grep -E "Active:|Main PID|Duration|Process" | head -6'
+
+echo ""
+printf "${BOLD}${ORANGE}  Systemd reports the service as inactive or failed.${RESET}\n"
 printf "${BOLD}${ORANGE}  The processes are very much alive.${RESET}\n"
 echo ""
 
-narrate "On startup, the agent and eBPF driver detach their core processes from systemd's control group into independent PIDs. Systemd killed the service wrapper -- the actual protection processes had already escaped. Systemd can see them in the cgroup. It cannot control them. This is intentional. This is what makes Act 4 possible."
+narrate "On startup the agent and eBPF driver detach their core processes from systemd's control group into independent PIDs. From that point forward, systemd has no handle on them. Exit code 17 is EEXIST -- the agent deliberately exits the systemd-managed instance when it detects its detached self is already running. Systemd sees a failure. The agent sees a success. This separation is what makes the next act possible."
 
 pause
 
@@ -255,10 +268,17 @@ narrate "One of the most common ransomware tactics on Linux: gain root, disable 
 
 narrate "Attempt 1: Stop the systemd services."
 
-run_cmd 'sudo systemctl stop halcyonagent halcyonebpf'
+echo ""
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}sudo systemctl stop halcyonagent halcyonebpf${RESET}\n"
+echo ""
+sudo systemctl stop halcyonagent halcyonebpf 2>&1
+echo ""
 
-run_cmd 'ps aux | grep -E "halcyon|ebpf" | grep -v grep'
-
+echo ""
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
+echo ""
+show_processes
+echo ""
 printf "${BOLD}${ORANGE}  Still running.${RESET}\n"
 
 narrate "Attempt 2: Kill the agent process directly with SIGKILL."
@@ -275,8 +295,11 @@ else
 fi
 echo ""
 
-run_cmd 'ps aux | grep -E "halcyon|ebpf" | grep -v grep'
-
+echo ""
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
+echo ""
+show_processes
+echo ""
 printf "${BOLD}${ORANGE}  Still running.${RESET}\n"
 
 narrate "Attempt 3: Delete the agent binary directly."
@@ -294,12 +317,25 @@ echo ""
 
 narrate "Attempt 4: Remove the package entirely using the system package manager as root."
 
-run_cmd 'sudo apt remove halcyonagent -y 2>&1 | grep -E "Operation not permitted|cannot remove|error processing|Killing|Failed to disable|too many errors"'
+echo ""
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}sudo apt remove halcyonagent -y${RESET}\n"
+echo ""
+sudo apt remove halcyonagent -y 2>&1 | grep -E "Operation not permitted|cannot remove|error processing|Killing|Failed to disable|too many errors"
+echo ""
 
 echo ""
 printf "${BOLD}${ORANGE}  Every vector blocked. Root cannot remove this agent.\n${RESET}"
 echo ""
 narrate "The eBPF driver intercepts file system and process operations at the kernel level before they complete. This is enforcement below the reach of any attacker operating in userspace, including root. The only legitimate removal path is a per-device maintenance token issued by Halcyon support, valid for 15 minutes."
+
+echo ""
+narrate "Confirming the agent is still operational after all four attempts."
+echo ""
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
+echo ""
+show_processes
+echo ""
+printf "${BOLD}${GREEN}  Agent operational. Nothing got through.${RESET}\n"
 
 pause
 
@@ -367,7 +403,7 @@ narrate "Live agent resource consumption:"
 echo ""
 printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
 echo ""
-ps aux | grep -E "halcyon|ebpf" | grep -v grep | awk '{printf "  %-45s  CPU: %-6s  MEM: %s%%\n", $11, $3"%", $4}'
+show_processes | awk '{printf "  %-45s  CPU: %-6s  MEM: %s%%\n", $11, $3"%", $4}'
 echo ""
 
 narrate "Periodic performance telemetry from the agent log. Format: CPU user, CPU system, memory RSS, memory VSZ, open files, threads, events processed."
