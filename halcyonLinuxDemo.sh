@@ -2,7 +2,7 @@
 # halcyonLinuxDemo.sh
 # Interactive demo script for the Halcyon Linux Anti-Ransomware Agent
 # Author  : Jim Harris -- Halcyon SA
-# Version : v1.3
+# Version : v1.4
 #
 # Usage: bash halcyonLinuxDemo.sh
 #
@@ -136,6 +136,10 @@ divider
 echo ""
 printf "${GRAY}  Press any key to begin...${RESET}"
 read -rsn1
+
+# Prime sudo -- prevents password prompts during demo
+sudo -v
+
 echo ""
 
 # ------------------------------------------------------------------ #
@@ -250,7 +254,6 @@ narrate "Both processes running since install. Now look at what systemd thinks a
 
 run_cmd 'systemctl status halcyonagent --no-pager | grep -E "Active:|Main PID|Duration|Process" | head -6'
 
-# Detect current systemd state and narrate accordingly
 SYSTEMD_STATE=$(systemctl is-active halcyonagent 2>/dev/null)
 echo ""
 if [ "$SYSTEMD_STATE" = "active" ]; then
@@ -416,26 +419,33 @@ for line in sys.stdin:
     fmt_ip = '.'.join(raw_ip.split(', ')) if raw_ip else 'unknown'
     raw_args = args.group(1) if args else ''
     dest = re.search(r'https://[^\s\"]+', raw_args)
-    print(f'  Timestamp  :  {ts}')
-    print(f'  Binary     :  {binary.group(1) if binary else \"unknown\"}')
-    print(f'  Destination:  {dest.group(0) if dest else \"unknown\"}')
-    print(f'  Remote IP  :  {fmt_ip}')
-    print(f'  DNS Match  :  {dns.group(1) if dns else \"unknown\"}')
-    print(f'  UID        :  {uid.group(1) if uid else \"unknown\"}')
+    print(f'  Timestamp    :  {ts}')
+    print(f'  Binary       :  {binary.group(1) if binary else \"unknown\"}')
+    print(f'  Destination  :  {dest.group(0) if dest else \"unknown\"}')
+    print(f'  Remote IP    :  {fmt_ip}')
+    print(f'  DNS Match    :  {dns.group(1) if dns else \"unknown\"}')
+    print(f'  UID          :  {uid.group(1) if uid else \"unknown\"}')
 "
 echo ""
 
-narrate "Live agent resource consumption:"
+narrate "Live agent resource consumption and event throughput since install:"
 
 echo ""
-printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}ps aux | grep -E 'halcyon|ebpf' | grep -v grep${RESET}\n"
+printf "${BOLD}${CYAN}  \$${RESET} ${BOLD}sudo grep \"PERF_STATS\" /opt/halcyon/halcyonar/logs/agent.log | tail -3${RESET}\n"
 echo ""
-show_processes | awk '{printf "  %-45s  CPU: %-6s  MEM: %s%%\n", $11, $3"%", $4}'
-echo ""
-
-narrate "Periodic performance telemetry from the agent log. Format: CPU user, CPU system, memory RSS, memory VSZ, open files, threads, events processed."
-
-run_cmd 'sudo grep "PERF_STATS" /opt/halcyon/halcyonar/logs/agent.log | tail -3'
+sudo grep "PERF_STATS" /opt/halcyon/halcyonar/logs/agent.log | tail -3 | python3 -c "
+import sys
+for line in sys.stdin:
+    parts = line.strip().split('PERF_STATS: ')[1].split(',')
+    ts = line.split()[0]
+    print(f'  {ts}')
+    print(f'    CPU user     : {parts[0]}%')
+    print(f'    CPU system   : {parts[1]}%')
+    print(f'    Memory RSS   : {int(parts[2]) // 1024 // 1024} MB')
+    print(f'    Threads      : {parts[5]}')
+    print(f'    Events total : {parts[6].strip()}')
+    print()
+"
 
 # ------------------------------------------------------------------ #
 # Closing
